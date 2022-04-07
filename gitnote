@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+
+assert_cmd_present() {
+    command -v "$1" &>/dev/null || \
+        { echo &>2 "$1 is required but missing."; exit 1; }
+}
+
+git_commit_changes() {
+    git add --all && git commit -m "gitnote autosave"
+}
+
+on_file_changes() {
+    echo "Checking for file changes."
+    if [[ -n $(git status --porcelain 2>/dev/null) ]]; then
+        echo "Committing changes."
+        git_commit_changes
+    else
+        echo "Nothing to commit."
+    fi
+}
+
+assert_cmd_present fswatch
+assert_cmd_present git
+
+USAGE="Usage: $(basename $0) path-to-notes-repo"
+
+[[ -z "$1" ]] && { echo "$USAGE"; exit 1; }
+
+pushd "$1"
+trap "popd" exit
+
+while true; do
+    on_file_changes
+    echo "Watching $1 for changes..."
+    fswatch --one-event --latency=5 --recursive --exclude=\.git "$1"
+done
