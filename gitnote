@@ -9,26 +9,71 @@ git_commit_changes() {
     git add --all && git commit -m "gitnote autosave"
 }
 
-on_file_changes() {
-    echo "Checking for file changes."
-    if [[ -n $(git status --porcelain 2>/dev/null) ]]; then
-        echo "Committing changes."
-        git_commit_changes
-    else
-        echo "Nothing to commit."
-    fi
+git_pull() {
+    git pull --rebase
 }
 
+git_push() {
+    git push
+}
+
+periodic_remote_sync() {
+    while true; do
+        echo "Remote sync started..."
+        git_pull && git_push
+        echo "Remote sync complete."
+        sleep 60
+    done
+}
+
+on_file_changes() {
+    echo "Checking for file changes."
+    if [[ -z $(git status --porcelain 2>/dev/null) ]]; then
+        echo "Nothing to commit."
+        return
+    fi
+    
+    echo "Changes found. Committing changes locally."
+    git_commit_changes || \
+        { echo &>2 "Failed to commit changes!"; git status; }
+}
+
+cleanup() {
+    if [[ -n "$SYNC_PID" ]]; then
+        kill "$SYNC_PID"
+    fi
+    popd
+}
+
+# Check that needed dependencies are installed
 assert_cmd_present fswatch
 assert_cmd_present git
 
+# Show usage and exit if no arguments specified
 USAGE="Usage: $(basename $0) path-to-notes-repo"
-
 [[ -z "$1" ]] && { echo "$USAGE"; exit 1; }
 
-pushd "$1"
-trap "popd" exit
+# Move working directory to the repo
+pushd "$1" >/dev/null
 
+# Check for a git repository
+git status --porcelain &>/dev/null || \
+    { echo "$1 doesn't appear to be a valid git repository."; exit 1; }
+
+# Periodically attempt to pull changes from remote
+git_commit_changes
+periodic_remote_sync &
+SYNC_PID=$!
+
+# Trap the exit to perform cleanup
+# Must kill the watch process and return 
+trap 'cleanup' exit
+
+# Main script loop:
+# Use git to check for file changes and commit them.
+# Wait indefinitely for file changes.
+#
+# This may collide with the background sync task.
 while true; do
     on_file_changes
     echo "Watching $1 for changes..."
