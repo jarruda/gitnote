@@ -10,14 +10,20 @@
 		"Other"
 	],
 	"activationEvents": [
-		"onCommand:gitnote.helloWorld"
+		"onCommand:gitnote.enableSync",
+		"onCommand:gitnote.disableSync",
+		"workspaceContains:.gitnote"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
 		"commands": [
 			{
-				"command": "gitnote.helloWorld",
-				"title": "Hello World"
+				"command": "gitnote.enableSync",
+				"title": "gitnote: Enable AutoSync"
+			},
+			{
+				"command": "gitnote.disableSync",
+				"title": "gitnote: Disable AutoSync"
 			}
 		]
 	},
