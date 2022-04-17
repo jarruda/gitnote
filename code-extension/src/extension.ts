@@ -10,18 +10,6 @@ let _handlingChangeNotification = false;
 export function activate(context: vscode.ExtensionContext) {
   console.log("gitnote activated.");
 
-  context.subscriptions.push(
-    vscode.commands.registerCommand("gitnote.enableSync", () => {
-      vscode.window.showInformationMessage("enable sync stub");
-    })
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand("gitnote.disableSync", () => {
-      vscode.window.showInformationMessage("disable sync stub");
-    })
-  );
-
   const gitExtension =
     vscode.extensions.getExtension<GitExtension>("vscode.git")?.exports;
   const git = gitExtension?.getAPI(1);
@@ -36,7 +24,7 @@ export function activate(context: vscode.ExtensionContext) {
     );
     const repo = git.repositories[0];
     console.log(
-      `git state changes: index=${repo.state.indexChanges.length} merge=${repo.state.mergeChanges.length} workingTree=${repo.state.workingTreeChanges.length}`
+      `on activation state check: index=${repo.state.indexChanges.length} merge=${repo.state.mergeChanges.length} workingTree=${repo.state.workingTreeChanges.length}`
     );
 
     context.subscriptions.push(
@@ -46,9 +34,21 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     if (getTotalRepoChangeCount(repo) > 0) {
-      commitRepoChanges(repo);
+      onGitRepoStateChanged(repo);
     }
   }
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("gitnote.enableSync", () => {
+      vscode.window.showInformationMessage("enable sync stub");
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("gitnote.disableSync", () => {
+      vscode.window.showInformationMessage("disable sync stub");
+    })
+  );
 }
 
 // this method is called when your extension is deactivated
@@ -72,12 +72,12 @@ async function onGitRepoStateChanged(repo: Repository) {
   if (_handlingChangeNotification) {
     return;
   }
-  _handlingChangeNotification = true;
-
   const totalChangeCount = getTotalRepoChangeCount(repo);
   if (totalChangeCount === 0) {
     return;
   }
+  
+  _handlingChangeNotification = true;
 
   console.log("Detected changes.", {
     indexChanges: repo.state.indexChanges.length,
