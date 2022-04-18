@@ -2,7 +2,7 @@
 
 assert_cmd_present() {
     command -v "$1" &>/dev/null || \
-        { echo &>2 "$1 is required but missing."; exit 1; }
+        { echo "$1 is required but missing." >&2; exit 1; }
 }
 
 git_commit_changes() {
@@ -35,14 +35,7 @@ on_file_changes() {
     
     echo "Changes found. Committing changes locally."
     git_commit_changes || \
-        { echo &>2 "Failed to commit changes!"; git status; }
-}
-
-cleanup() {
-    if [[ -n "$SYNC_PID" ]]; then
-        kill "$SYNC_PID"
-    fi
-    popd
+        { echo "Failed to commit changes!" >&2; git status; }
 }
 
 # Check that needed dependencies are installed
@@ -54,7 +47,7 @@ USAGE="Usage: $(basename $0) path-to-notes-repo"
 [[ -z "$1" ]] && { echo "$USAGE"; exit 1; }
 
 # Move working directory to the repo
-pushd "$1" >/dev/null
+cd "$1" >/dev/null
 
 # Check for a git repository
 git status --porcelain &>/dev/null || \
@@ -67,7 +60,8 @@ SYNC_PID=$!
 
 # Trap the exit to perform cleanup
 # Must kill the watch process and return 
-trap 'cleanup' exit
+# trap 'cleanup' exit
+trap 'exit' sigint
 
 # Main script loop:
 # Use git to check for file changes and commit them.
