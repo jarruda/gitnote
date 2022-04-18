@@ -1,9 +1,11 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
+import { clearInterval } from "timers";
 import * as vscode from "vscode";
 import { GitExtension, Repository } from "./api/git";
 
 let _handlingChangeNotification = false;
+let _remoteSyncIntervalHandle: NodeJS.Timeout;
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
@@ -23,9 +25,11 @@ export function activate(context: vscode.ExtensionContext) {
       "git is initialized and has a repository open. subscribing to changes."
     );
     const repo = git.repositories[0];
-    console.log(
-      `on activation state check: index=${repo.state.indexChanges.length} merge=${repo.state.mergeChanges.length} workingTree=${repo.state.workingTreeChanges.length}`
-    );
+    console.log("on activation state check", {
+      indexChanges: repo.state.indexChanges.length,
+      mergeChanges: repo.state.mergeChanges.length,
+      workingTreeChanges: repo.state.workingTreeChanges.length,
+    });
 
     context.subscriptions.push(
       repo.state.onDidChange(() => {
@@ -36,6 +40,9 @@ export function activate(context: vscode.ExtensionContext) {
     if (getTotalRepoChangeCount(repo) > 0) {
       onGitRepoStateChanged(repo);
     }
+
+    console.log("Setting remote sync interval at 30s");
+    _remoteSyncIntervalHandle = setInterval(() => remoteSyncInterval(repo), 30000);
   }
 
   context.subscriptions.push(
@@ -52,7 +59,11 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 // this method is called when your extension is deactivated
-export function deactivate() {}
+export function deactivate() {
+  if (_remoteSyncIntervalHandle) {
+    clearInterval(_remoteSyncIntervalHandle);
+  }
+}
 
 async function commitRepoChanges(repo: Repository) {
   try {
@@ -76,7 +87,7 @@ async function onGitRepoStateChanged(repo: Repository) {
   if (totalChangeCount === 0) {
     return;
   }
-  
+
   _handlingChangeNotification = true;
 
   console.log("Detected changes.", {
@@ -88,6 +99,25 @@ async function onGitRepoStateChanged(repo: Repository) {
   await commitRepoChanges(repo);
 
   _handlingChangeNotification = false;
+}
+
+async function remoteSyncInterval(repo: Repository) {
+  console.log("Remote sync interval.");
+  if (_handlingChangeNotification) {
+    console.log("Ignoring sync while change handling is in progress.");
+    return;
+  }
+
+  try {
+    console.log("Pulling.");
+    await repo.pull();
+    console.log("Pushing.");
+    await repo.push();
+    console.log("Remote sync complete.");
+  }
+  catch (e) {
+    console.error("Failed to synchronize with remote.", e);
+  }
 }
 
 function getTotalRepoChangeCount(repo: Repository) {
